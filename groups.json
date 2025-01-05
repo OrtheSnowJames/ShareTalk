@@ -8,13 +8,9 @@
         "iphone 👍",
         "james"
       ]
-    },
-    {
-      "GroupName": "testgroup1",
-      "GroupPassword": "password1",
-      "names": [
-        "bob mcbobinson"
-      ]
     }
+  ],
+  "Banned": [
+    "sadgroup:("
   ]
 }

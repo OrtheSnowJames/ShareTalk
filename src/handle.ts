@@ -15,7 +15,7 @@ export class Handle {
             await fs.access(this.groupsFilePath);
         } catch {
             // File doesn't exist, create it with default structure
-            await fs.writeFile(this.groupsFilePath, JSON.stringify({ Groups: [] }, null, 2));
+            await fs.writeFile(this.groupsFilePath, JSON.stringify({ Groups: [], Banned: [] }, null, 2));
         }
     }
 
@@ -26,7 +26,7 @@ export class Handle {
             return JSON.parse(data);
         } catch (err) {
             console.error('Error reading groups.json:', err);
-            return { Groups: [] };
+            return { Groups: [], Banned: [] };
         }
     }
 
@@ -58,26 +58,33 @@ export class Handle {
 
             const groupsData = await this.readGroupsFile();
 
-            const matchingGroup = groupsData.Groups.find((group: any) => {
-                return (
-                    normalizeString(group.GroupName) === loginRequest.GroupName &&
-                    normalizeString(group.GroupPassword) === loginRequest.GroupPassword &&
-                    group.names.map(normalizeString).includes(loginRequest.Name)
-                );
-            });
+            const groupIsBanned = groupsData.Banned.includes(loginRequest.GroupName);
 
-            if (matchingGroup) {
-                const token = crypto.randomBytes(32).toString('hex');
-                console.log('Login successful for:', loginRequest.Name);
-                result = {
-                    LoginSuccessful: matchingGroup.GroupName,
-                    Name: loginRequest.Name,
-                    Password: loginRequest.GroupPassword,
-                    token: token
-                };
+            if (groupIsBanned) {
+                console.log('Group is banned:', loginRequest.GroupName);
+                result = { GroupIsBanned: loginRequest.GroupName };
             } else {
-                console.log('Invalid login credentials for:', loginRequest.Name);
-                result = { InvalidCredentials: true };
+                const matchingGroup = groupsData.Groups.find((group: any) => {
+                    return (
+                        normalizeString(group.GroupName) === loginRequest.GroupName &&
+                        normalizeString(group.GroupPassword) === loginRequest.GroupPassword &&
+                        group.names.map(normalizeString).includes(loginRequest.Name)
+                    );
+                });
+
+                if (matchingGroup) {
+                    const token = crypto.randomBytes(32).toString('hex');
+                    console.log('Login successful for:', loginRequest.Name);
+                    result = {
+                        LoginSuccessful: matchingGroup.GroupName,
+                        Name: loginRequest.Name,
+                        Password: loginRequest.GroupPassword,
+                        token: token
+                    };
+                } else {
+                    console.log('Invalid login credentials for:', loginRequest.Name);
+                    result = { InvalidCredentials: true };
+                }
             }
         }
 
@@ -95,9 +102,11 @@ export class Handle {
                 normalizeString(group.GroupName) === signupRequest.GroupName
             );
 
-            if (groupExistsInJson) {
-                console.log('Group already exists:', message.SignupRequest.GroupName);
-                result = { GroupAlreadyExists: message.SignupRequest.GroupName };
+            const groupIsBanned = groupsData.Banned.includes(signupRequest.GroupName);
+
+            if (groupExistsInJson || groupIsBanned) {
+                console.log('Group already exists or is banned:', message.SignupRequest.GroupName);
+                result = { GroupAlreadyExistsOrBanned: message.SignupRequest.GroupName };
             } else {
                 groupsData.Groups.push({
                     GroupName: message.SignupRequest.GroupName, // Keep original case

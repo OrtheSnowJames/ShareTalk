@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 
 const GROUPS_DIR = path.join(__dirname, 'groups');
+const GROUP_SRC_DIR = path.join(__dirname, 'grpsrc')
 const GROUPS_FILE = path.join(__dirname, '../groups.json');
 
 let groupCache: string[] = [];
@@ -67,5 +68,6 @@ export async function groupExists(groupName: string): Promise<boolean> {
 export async function createGroupDirectory(groupName: string): Promise<void> {
     const groupPath = path.join(GROUPS_DIR, groupName);
     await fs.mkdir(groupPath, { recursive: true });
+    await fs.mkdir(GROUP_SRC_DIR, groupName);
     await updateGroupCache(); // Update cache after creating new directory
 }
