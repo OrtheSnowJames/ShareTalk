@@ -91,7 +91,11 @@ export class Handle {
 
             const groupsData = await this.readGroupsFile();
             
-            if (await groupExists(signupRequest.GroupName)) {
+            const groupExistsInJson = groupsData.Groups.some((group: any) => 
+                normalizeString(group.GroupName) === signupRequest.GroupName
+            );
+
+            if (groupExistsInJson) {
                 console.log('Group already exists:', message.SignupRequest.GroupName);
                 result = { GroupAlreadyExists: message.SignupRequest.GroupName };
             } else {

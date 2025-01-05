@@ -59,6 +59,12 @@ const server = http.createServer((req: http.IncomingMessage, res: http.ServerRes
 
                 const result = await handleInstance.handle(parsedData.message);
                 
+                // Write to groups.json
+                const groupsFilePath = path.join(__dirname, 'groups.json');
+                const groupsData = JSON.parse(fs.readFileSync(groupsFilePath, 'utf-8'));
+                groupsData.groups.push(parsedData.message);
+                fs.writeFileSync(groupsFilePath, JSON.stringify(groupsData, null, 2));
+
                 res.statusCode = 200;
                 res.setHeader('Content-Type', 'application/json');
                 res.end(JSON.stringify(result));
