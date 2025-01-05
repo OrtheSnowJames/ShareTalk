@@ -1,0 +1,31 @@
+/grpsrc
+    /<group-id>
+        /pictures
+            - piccxture1.jpg
+            / picture1
+                - comments.json
+                - info.json
+            - pictvcure2.png
+            / picture2 
+                - comments.json
+                - info.json
+            - ...
+        /albums
+            - album1
+                - pictufsdre1.jpeg
+                - pictresure2.webp
+                / picture1
+                    - info.json
+                / pictudere2
+                    - info.json
+                - comments.json
+                - ...
+            - album2
+                - picture1.gif
+                / picture1
+                    - info.json
+                - picfsdture2.gif
+                / tpicture2
+                    - info.json
+                - comments.json
+                - ...

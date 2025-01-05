@@ -1,34 +1,52 @@
 import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { createGroupDirectory, groupExists } from './middleware';
 
 export class Handle {
+    private groupsFilePath: string;
+
+    constructor() {
+        this.groupsFilePath = path.join(__dirname, '../groups.json');
+    }
+
+    private async ensureGroupsFile(): Promise<void> {
+        try {
+            await fs.access(this.groupsFilePath);
+        } catch {
+            // File doesn't exist, create it with default structure
+            await fs.writeFile(this.groupsFilePath, JSON.stringify({ Groups: [] }, null, 2));
+        }
+    }
+
+    private async readGroupsFile(): Promise<any> {
+        await this.ensureGroupsFile();
+        try {
+            const data = await fs.readFile(this.groupsFilePath, 'utf8');
+            return JSON.parse(data);
+        } catch (err) {
+            console.error('Error reading groups.json:', err);
+            return { Groups: [] };
+        }
+    }
+
+    private async writeGroupsFile(data: any): Promise<void> {
+        try {
+            await fs.writeFile(this.groupsFilePath, JSON.stringify(data, null, 2), { flag: 'w' });
+        } catch (err) {
+            console.error('Error writing to groups.json:', err);
+            throw new Error('Failed to update groups.json');
+        }
+    }
+
     async handle(message: any): Promise<any> {
+        console.log('Handling message:', message);
+
         let result = {};
 
         // Utility function to normalize strings
         const normalizeString = (str: string): string =>
             str.toLowerCase().replace(/\s+/g, '');
-
-        // Read and parse groups.json safely
-        const readGroupsFile = async (): Promise<any> => {
-            try {
-                const data = await fs.readFile('./groups.json', 'utf8');
-                return JSON.parse(data);
-            } catch (err) {
-                console.error('Error reading groups.json:', err);
-                return { Groups: [] }; // Default empty structure if file doesn't exist or is malformed
-            }
-        };
-
-        // Write data back to groups.json safely
-        const writeGroupsFile = async (data: any): Promise<void> => {
-            try {
-                await fs.writeFile('./groups.json', JSON.stringify(data, null, 2));
-                console.log('groups.json updated successfully');
-            } catch (err) {
-                console.error('Error writing to groups.json:', err);
-                throw new Error('Failed to update groups.json');
-            }
-        };
 
         // Handle LoginRequest
         if ('LoginRequest' in message) {
@@ -38,7 +56,7 @@ export class Handle {
                 Name: normalizeString(message.LoginRequest.Name),
             };
 
-            const groupsData = await readGroupsFile();
+            const groupsData = await this.readGroupsFile();
 
             const matchingGroup = groupsData.Groups.find((group: any) => {
                 return (
@@ -49,11 +67,13 @@ export class Handle {
             });
 
             if (matchingGroup) {
+                const token = crypto.randomBytes(32).toString('hex');
                 console.log('Login successful for:', loginRequest.Name);
                 result = {
                     LoginSuccessful: matchingGroup.GroupName,
                     Name: loginRequest.Name,
                     Password: loginRequest.GroupPassword,
+                    token: token
                 };
             } else {
                 console.log('Invalid login credentials for:', loginRequest.Name);
@@ -69,15 +89,11 @@ export class Handle {
                 Names: message.SignupRequest.Names.map(normalizeString),
             };
 
-            const groupsData = await readGroupsFile();
-
-            const groupExists = groupsData.Groups.some((group: any) =>
-                normalizeString(group.GroupName) === signupRequest.GroupName
-            );
-
-            if (groupExists) {
+            const groupsData = await this.readGroupsFile();
+            
+            if (await groupExists(signupRequest.GroupName)) {
                 console.log('Group already exists:', message.SignupRequest.GroupName);
-                result = { GroupAlreadyExists: true };
+                result = { GroupAlreadyExists: message.SignupRequest.GroupName };
             } else {
                 groupsData.Groups.push({
                     GroupName: message.SignupRequest.GroupName, // Keep original case
@@ -85,7 +101,8 @@ export class Handle {
                     names: message.SignupRequest.Names,
                 });
 
-                await writeGroupsFile(groupsData);
+                await this.writeGroupsFile(groupsData);
+                await createGroupDirectory(message.SignupRequest.GroupName);
                 console.log('New group created:', message.SignupRequest.GroupName);
                 result = { GroupMade: true };
             }

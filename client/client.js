@@ -1,3 +1,18 @@
+var errorMessageDiv = document.createElement("div");
+errorMessageDiv.style.color = "red";
+errorMessageDiv.style.position = "fixed";
+errorMessageDiv.style.top = "10px";
+errorMessageDiv.style.width = "100%";
+errorMessageDiv.style.textAlign = "center";
+errorMessageDiv.style.display = "none";
+document.body.appendChild(errorMessageDiv);
+function showError(message) {
+    errorMessageDiv.textContent = message;
+    errorMessageDiv.style.display = "block";
+}
+function clearError() {
+    errorMessageDiv.style.display = "none";
+}
 var groupnamefield = document.createElement("input");
 var logintext = document.createElement("h1");
 var centeralign = document.createElement("div");
@@ -58,9 +73,15 @@ setTimeout(function () {
     signupbutton.textContent = "Sign Up";
     signupbutton.type = "button";
     centeralign.appendChild(signupbutton);
+    var logoutbutton = document.createElement("button");
+    logoutbutton.textContent = "Logout";
+    logoutbutton.type = "button";
+    centeralign.appendChild(logoutbutton);
     document.body.appendChild(centeralign);
     signupbutton.addEventListener("click", function () {
+        var errorDiv = errorMessageDiv; // Save reference to error div
         document.body.innerHTML = "";
+        document.body.appendChild(errorDiv); // Add error div back
         var signupTitle = document.createElement("h1");
         signupTitle.innerText = "Sign Up for a New Group";
         signupTitle.style.color = "#000000";
@@ -135,10 +156,22 @@ setTimeout(function () {
             })
                 .then(function (response) { return response.json(); })
                 .then(function (data) {
-                console.log("Data received: ".concat(data));
+                console.log('Data received:', data);
+                if (data.Error) {
+                    showError(data.Error);
+                }
+                else if (data.GroupAlreadyExists) {
+                    showError("Group \"".concat(data.GroupAlreadyExists, "\" already exists"));
+                }
+                else if (data.GroupMade) {
+                    clearError();
+                    alert('Group created successfully!');
+                    window.location.reload();
+                }
             })
                 .catch(function (error) {
-                console.error("Error: ".concat(error));
+                console.error('Error:', error);
+                showError(error.message);
             });
         });
     });
@@ -162,11 +195,52 @@ setTimeout(function () {
         })
             .then(function (response) { return response.json(); })
             .then(function (data) {
-            console.log("Data received: ".concat(data));
+            console.log('Data received:', data);
+            if (data.Error) {
+                showError(data.Error);
+            }
+            else if (data.InvalidCredentials) {
+                showError('Invalid credentials');
+            }
+            else if (data.LoginSuccessful) {
+                clearError();
+                // Store the token with group name
+                localStorage.setItem("groupToken_".concat(data.LoginSuccessful), data.token);
+                window.location.href = "/groups/".concat(data.LoginSuccessful);
+            }
         })
             .catch(function (error) {
-            console.error("Error: ".concat(error));
+            console.error('Error:', error);
+            showError(error.message);
         });
+    });
+    logoutbutton.addEventListener("click", function () {
+        var token = localStorage.getItem('token');
+        if (token) {
+            fetch('/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token
+                }
+            })
+                .then(function (response) { return response.json(); })
+                .then(function (data) {
+                console.log("Data received: ".concat(data));
+                if (data.message === 'Logged out successfully') {
+                    localStorage.removeItem('token');
+                    alert('Logged out successfully');
+                }
+            })
+                .catch(function (error) {
+                console.error("Error: ".concat(error));
+            });
+        }
+        else {
+            alert('No token found');
+        }
+    });
+    [groupnamefield, grouppasswdfield, namefield].forEach(function (field) {
+        field.addEventListener('input', clearError);
     });
 }, 500);
 function centerAndSpaceDiv(element) {

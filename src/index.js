@@ -40,12 +40,21 @@ var http = require("http");
 var fs = require("fs");
 var path = require("path");
 var handle_1 = require("./handle");
+console.log('Happy developing ✨');
 var hostname = 'localhost';
 var port = 3000;
+var tokens = new Set();
+function generateToken() {
+    return Math.random().toString(36).substr(2);
+}
+function authenticate(req) {
+    var token = req.headers['authorization'];
+    return typeof token === 'string' && tokens.has(token);
+}
 function sendFile(res, filePath, contentType) {
     var fullPath = path.join(__dirname, filePath);
     // Read the file asynchronously
-    fs.readFile(fullPath, 'utf8', function (err, data) {
+    fs.readFile(fullPath, function (err, data) {
         if (err) {
             res.statusCode = 500;
             res.setHeader('Content-Type', 'text/plain');
@@ -58,6 +67,7 @@ function sendFile(res, filePath, contentType) {
     });
 }
 var server = http.createServer(function (req, res) {
+    var _a, _b;
     if (req != null) {
         console.log("Request for ".concat(req.url));
     }
@@ -67,66 +77,127 @@ var server = http.createServer(function (req, res) {
             body_1 += chunk;
         });
         req.on('end', function () { return __awaiter(void 0, void 0, void 0, function () {
-            var handleInstance, parsedData, _a, GroupName, GroupPassword, Names, result, _b, GroupName, GroupPassword, Name, result, error_1;
-            var _c, _d;
-            return __generator(this, function (_e) {
-                switch (_e.label) {
+            var handleInstance, parsedData, result, error_1;
+            return __generator(this, function (_a) {
+                switch (_a.label) {
                     case 0:
-                        _e.trys.push([0, 6, , 7]);
+                        _a.trys.push([0, 2, , 3]);
                         handleInstance = new handle_1.Handle();
                         parsedData = JSON.parse(body_1);
-                        console.log('Received data:', parsedData);
-                        if (!((_c = parsedData.message) === null || _c === void 0 ? void 0 : _c.SignupRequest)) return [3 /*break*/, 2];
-                        _a = parsedData.message.SignupRequest, GroupName = _a.GroupName, GroupPassword = _a.GroupPassword, Names = _a.Names;
-                        console.log('SignupRequest details:', { GroupName: GroupName, GroupPassword: GroupPassword, Names: Names });
-                        return [4 /*yield*/, handleInstance.handle({
-                                type: 'SignupRequest',
-                                GroupName: GroupName,
-                                GroupPassword: GroupPassword,
-                                Names: Names,
-                            })];
+                        if (!parsedData.message) {
+                            throw new Error('Invalid request format: missing message');
+                        }
+                        return [4 /*yield*/, handleInstance.handle(parsedData.message)];
                     case 1:
-                        result = _e.sent();
+                        result = _a.sent();
                         res.statusCode = 200;
                         res.setHeader('Content-Type', 'application/json');
                         res.end(JSON.stringify(result));
-                        return [3 /*break*/, 5];
+                        return [3 /*break*/, 3];
                     case 2:
-                        if (!((_d = parsedData.message) === null || _d === void 0 ? void 0 : _d.LoginRequest)) return [3 /*break*/, 4];
-                        _b = parsedData.message.LoginRequest, GroupName = _b.GroupName, GroupPassword = _b.GroupPassword, Name = _b.Name;
-                        console.log('LoginRequest details:', { GroupName: GroupName, GroupPassword: GroupPassword, Name: Name });
-                        return [4 /*yield*/, handleInstance.handle({
-                                type: 'LoginRequest',
-                                GroupName: GroupName,
-                                GroupPassword: GroupPassword,
-                                Name: Name,
-                            })];
-                    case 3:
-                        result = _e.sent();
-                        res.statusCode = 200;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify(result));
-                        return [3 /*break*/, 5];
-                    case 4: throw new Error('Invalid request format');
-                    case 5: return [3 /*break*/, 7];
-                    case 6:
-                        error_1 = _e.sent();
+                        error_1 = _a.sent();
                         console.error('Error processing request:', error_1);
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'text/plain');
-                        res.end("Error processing request: ".concat(error_1.message));
-                        return [3 /*break*/, 7];
-                    case 7: return [2 /*return*/];
+                        res.statusCode = 400;
+                        res.setHeader('Content-Type', 'application/json');
+                        res.end(JSON.stringify({
+                            Error: error_1.message || 'An unknown error occurred'
+                        }));
+                        return [3 /*break*/, 3];
+                    case 3: return [2 /*return*/];
                 }
             });
         }); });
         return; // Ensure no further response handling occurs
     }
+    // this is to ensure people don't get private items instead of just sending everything to the client
+    if (req.method === 'GET' && req.url === '/api/group-data') {
+        var token = req.headers['authorization'];
+        var groupId_1 = req.headers['group-id'];
+        if (!token || !groupId_1) {
+            res.statusCode = 401;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Missing token or group ID' }));
+            return;
+        }
+        if (!authenticate(req)) {
+            res.statusCode = 403;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Invalid token' }));
+            return;
+        }
+        try {
+            var groupPath = path.join(__dirname, 'grpsrc', groupId_1.toString());
+            fs.access(groupPath, fs.constants.R_OK, function (err) {
+                if (err) {
+                    res.statusCode = 404;
+                    res.setHeader('Content-Type', 'application/json');
+                    res.end(JSON.stringify({ error: 'Group not found' }));
+                    return;
+                }
+                // Use relative path for sending files
+                sendFile(res, "./grpsrc/".concat(groupId_1, "/info.json"), 'application/json');
+            });
+        }
+        catch (error) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Server error' }));
+        }
+    }
     if (req.url === '/') {
         sendFile(res, '../client/index.html', 'text/html');
     }
+    else if ((_a = req.url) === null || _a === void 0 ? void 0 : _a.startsWith("/groups")) {
+        var groupPath = req.url.substring(1); // Remove the leading slash
+        var isAuthenticated = authenticate(req);
+        if (isAuthenticated) {
+            if (req.url.endsWith('.js')) {
+                sendFile(res, "./groups/".concat(groupPath), 'application/javascript');
+            }
+            else {
+                sendFile(res, "./groups/".concat(groupPath), 'text/html');
+            }
+        }
+        else {
+            res.writeHead(302, { 'Location': '/404/' });
+            res.end();
+        }
+    }
+    else if ((_b = req.url) === null || _b === void 0 ? void 0 : _b.startsWith("/assets")) {
+        var assetPath = req.url.substring(1); // Remove the leading slash
+        var ext = path.extname(assetPath).toLowerCase();
+        var contentType = 'application/octet-stream';
+        switch (ext) {
+            case '.js':
+                contentType = 'application/javascript';
+                break;
+            case '.css':
+                contentType = 'text/css';
+                break;
+            case '.html':
+                contentType = 'text/html';
+                break;
+            case '.png':
+                contentType = 'image/png';
+                break;
+            case '.jpg':
+            case '.jpeg':
+                contentType = 'image/jpeg';
+                break;
+            case '.gif':
+                contentType = 'image/gif';
+                break;
+            case '.svg':
+                contentType = 'image/svg+xml';
+                break;
+        }
+        sendFile(res, "../".concat(assetPath), contentType);
+    }
     else if (req.url === '/client.js') {
         sendFile(res, '../client/client.js', 'application/javascript');
+    }
+    else if (req.url === '/thestylesheet.css' || req.url === '/client/thestylesheet.css') {
+        sendFile(res, '../client/thestylesheet.css', 'text/css');
     }
     else if (req.url === '/404/') {
         sendFile(res, '../client/notfound.html', 'text/html');
@@ -135,6 +206,30 @@ var server = http.createServer(function (req, res) {
         res.statusCode = 200;
         res.setHeader('Content-Type', 'text/html');
         res.end('<h1>About Us</h1><p>Share talk is a browser site where groups can get together and post and comment on photos and videos.</p>');
+    }
+    else if (req.url == '/favicon.ico') {
+        sendFile(res, '../assets/favicon.ico', 'image/x-icon');
+    }
+    else if (req.url === '/login') {
+        var token = generateToken();
+        tokens.add(token);
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ token: token }));
+    }
+    else if (req.url === '/logout' && req.method === 'POST') {
+        var token = req.headers['authorization'];
+        if (token && tokens.has(token)) {
+            tokens.delete(token);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ message: 'Logged out successfully' }));
+        }
+        else {
+            res.statusCode = 401;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ message: 'Invalid token' }));
+        }
     }
     else {
         res.writeHead(302, { 'Location': '/404/' });

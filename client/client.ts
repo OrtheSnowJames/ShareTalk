@@ -1,3 +1,21 @@
+let errorMessageDiv = document.createElement("div");
+errorMessageDiv.style.color = "red";
+errorMessageDiv.style.position = "fixed";
+errorMessageDiv.style.top = "10px";
+errorMessageDiv.style.width = "100%";
+errorMessageDiv.style.textAlign = "center";
+errorMessageDiv.style.display = "none";
+document.body.appendChild(errorMessageDiv);
+
+function showError(message: string) {
+    errorMessageDiv.textContent = message;
+    errorMessageDiv.style.display = "block";
+}
+
+function clearError() {
+    errorMessageDiv.style.display = "none";
+}
+
 let groupnamefield = document.createElement("input");
 let logintext = document.createElement("h1");
 let centeralign = document.createElement("div");
@@ -67,10 +85,17 @@ setTimeout(() => {
     signupbutton.type = "button";
     centeralign.appendChild(signupbutton);
 
+    let logoutbutton = document.createElement("button");
+    logoutbutton.textContent = "Logout";
+    logoutbutton.type = "button";
+    centeralign.appendChild(logoutbutton);
+
     document.body.appendChild(centeralign);
 
     signupbutton.addEventListener("click", function () {
+        const errorDiv = errorMessageDiv; // Save reference to error div
         document.body.innerHTML = "";
+        document.body.appendChild(errorDiv); // Add error div back
 
         let signupTitle = document.createElement("h1");
         signupTitle.innerText = "Sign Up for a New Group";
@@ -154,10 +179,20 @@ setTimeout(() => {
             })
                 .then(response => response.json())
                 .then(data => {
-                    console.log(`Data received: ${data}`);
+                    console.log('Data received:', data);
+                    if (data.Error) {
+                        showError(data.Error);
+                    } else if (data.GroupAlreadyExists) {
+                        showError(`Group "${data.GroupAlreadyExists}" already exists`);
+                    } else if (data.GroupMade) {
+                        clearError();
+                        alert('Group created successfully!');
+                        window.location.reload();
+                    }
                 })
                 .catch(error => {
-                    console.error(`Error: ${error}`);
+                    console.error('Error:', error);
+                    showError(error.message);
                 });
         });
     });
@@ -184,11 +219,51 @@ setTimeout(() => {
         })
             .then(response => response.json())
             .then(data => {
-                console.log(`Data received: ${data}`);
+                console.log('Data received:', data);
+                if (data.Error) {
+                    showError(data.Error);
+                } else if (data.InvalidCredentials) {
+                    showError('Invalid credentials');
+                } else if (data.LoginSuccessful) {
+                    clearError();
+                    // Store the token with group name
+                    localStorage.setItem(`groupToken_${data.LoginSuccessful}`, data.token);
+                    window.location.href = `/groups/${data.LoginSuccessful}`;
+                }
             })
             .catch(error => {
-                console.error(`Error: ${error}`);
+                console.error('Error:', error);
+                showError(error.message);
             });
+    });
+
+    logoutbutton.addEventListener("click", function () {
+        const token = localStorage.getItem('token');
+        if (token) {
+            fetch('/logout', {
+                method: 'POST',
+                headers: {
+                    'Authorization': token
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Data received: ${data}`);
+                    if (data.message === 'Logged out successfully') {
+                        localStorage.removeItem('token');
+                        alert('Logged out successfully');
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error: ${error}`);
+                });
+        } else {
+            alert('No token found');
+        }
+    });
+
+    [groupnamefield, grouppasswdfield, namefield].forEach(field => {
+        field.addEventListener('input', clearError);
     });
 }, 500);
 
